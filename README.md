@@ -15,20 +15,27 @@ A self-contained observability environment using Docker Compose. Metrics go to P
 
 1. Clone the repository:
 
-```git clone https://github.com/luqmarthinus/observability-stack.git```
-
-```cd observability-stack ```
+```bash
+git clone https://github.com/luqmarthinus/observability-stack.git
+```
+```bash
+cd observability-stack
+```
 
 
 2. Run the setup script:
 
-```./scripts/setup.sh```
+```bash
+./scripts/setup.sh
+```
 
 This checks dependencies, generates a random Grafana admin password, validates configuration files, and starts all services.
 
 3. Open http://localhost:3000, log in with user `admin` and the password from:
 
-```cat secrets/grafana_admin_password```
+```bash
+cat secrets/grafana_admin_password
+```
 
 
 ## What's included
@@ -73,7 +80,9 @@ Grafana will reinitialize with the password from the file.
 
 ## Stopping the stack
 
-```docker compose down```
+```bash
+docker compose down
+```
 
 
 Add `-v` to also remove data volumes (resets all persisted data):
@@ -82,7 +91,9 @@ Add `-v` to also remove data volumes (resets all persisted data):
 
 To remove all Docker containers, networks, volumes, and the generated password file, run:
 
-```./scripts/uninstall.sh```
+```bash
+./scripts/uninstall.sh
+```
 
 
 This leaves only the repository code, so you can rebuild later with `./scripts/setup.sh`. The script is safe to run even if the stack is not currently running.
