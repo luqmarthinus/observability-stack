@@ -32,8 +32,8 @@ init_secrets() {
   mkdir -p "${SECRETS_DIR}"
   if [[ ! -f "${SECRETS_DIR}/grafana_admin_password" ]]; then
     echo "Generating Grafana admin password..."
-    openssl rand -base64 32 > "${SECRETS_DIR}/grafana_admin_password"
-    chmod 600 "${SECRETS_DIR}/grafana_admin_password"
+    openssl rand -base64 32 | tr -d '\n' > "${SECRETS_DIR}/grafana_admin_password"
+    chmod 644 "${SECRETS_DIR}/grafana_admin_password"
     echo "Secret stored in ${SECRETS_DIR}/grafana_admin_password"
   else
     echo "Grafana admin password already exists – skipping."
@@ -65,7 +65,7 @@ bootstrap_configs() {
 # ── Set restrictive permissions on sensitive files ─────────────
 set_permissions() {
   echo "Setting file permissions..."
-  chmod 600 "${SECRETS_DIR}/grafana_admin_password" 2>/dev/null || true
+  chmod 644 "${SECRETS_DIR}/grafana_admin_password" 2>/dev/null || true
   chmod 644 "${STACK_DIR}/prometheus/prometheus.yml" 2>/dev/null || true
   chmod 644 "${STACK_DIR}/loki/loki.yml" 2>/dev/null || true
   chmod 644 "${STACK_DIR}/alloy/config.alloy" 2>/dev/null || true

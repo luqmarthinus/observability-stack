@@ -1,0 +1,152 @@
+# ================================================================
+# Observability Stack
+# ================================================================
+
+x-logging: &default-logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-security: &default-security
+  security_opt:
+    - "no-new-privileges=true"
+
+services:
+  # ------------------------------------------------------------------
+  # Prometheus – metrics collection & alerting
+  # ------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v3.11.3          # Latest stable as of 2026-04-27
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./stack/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - observability_backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    <<: [*default-logging, *default-security]
+
+  # ------------------------------------------------------------------
+  # Grafana – dashboards & visualisation
+  # ------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:13.0.1           #Latest stable as of 2026-05-05
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      #- GF_SECURITY_ADMIN_PASSWORD=ChangeMe123!
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_pass
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    secrets:
+      - grafana_pass
+    networks:
+      - observability_backend
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    <<: [*default-logging, *default-security]
+
+  # ------------------------------------------------------------------
+  # Loki – log aggregation
+  # ------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.7.1
+    container_name: loki
+    command: -config.file=/etc/loki/loki.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./stack/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    networks:
+      - observability_backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "loki", "--health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    <<: [*default-logging, *default-security]
+
+  # ------------------------------------------------------------------
+  # Grafana Alloy – log collection (replaces Promtail(EOL))
+  # ------------------------------------------------------------------
+  alloy:
+    build:
+      context: ./stack/alloy-docker
+      dockerfile: Dockerfile
+    container_name: alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./stack/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "12345:12345"   # Expose Alloy’s UI / health endpoint on the host
+    networks:
+      - observability_backend
+    restart: unless-stopped
+    <<: [*default-logging, *default-security]
+
+  # ------------------------------------------------------------------
+  # Tempo – distributed tracing backend
+  # ------------------------------------------------------------------
+  tempo:
+    build:
+      context: ./stack/tempo-docker
+      dockerfile: Dockerfile
+    container_name: tempo
+    command: -config.file=/etc/tempo.yml
+    volumes:
+      - ./stack/tempo/tempo.yml:/etc/tempo.yml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - observability_backend
+    restart: unless-stopped
+    <<: [*default-logging, *default-security]
+
+networks:
+  observability_backend:
+    name: observability_backend
+    driver: bridge
+
+secrets:
+  grafana_pass:
+    file: ./secrets/grafana_admin_password
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  tempo_data:
